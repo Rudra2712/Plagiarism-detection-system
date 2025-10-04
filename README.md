@@ -51,14 +51,6 @@ The scanner ignores these directories (configurable):
 ## Usage
 
 ```bash
-python -m src.main \
-  --corpus ./corpus \
-  --k 5 \
-  --w 4 \
-  --file-threshold 0.40 \
-  --assignment-threshold 0.40 \
-  --show-details
--
 
 # 1. Navigate to your project folder
 cd "E:\vs code\VS CODE\DAA assignment"
