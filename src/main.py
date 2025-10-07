@@ -123,34 +123,40 @@ def compare_assignments(
     file_threshold: float,
     assignment_threshold: float,
     show_details: bool = False
-) -> List[Tuple[str, str]]:
+) -> Dict[str, List[Dict]]:
     """
-    Compare each pair of assignments and report suspicious pairs.
-    Returns list of suspicious (A, B) pairs.
+    Compare each pair of assignments and report suspicious pairs and file-level details.
+    Returns dict:
+      {
+        "suspiciousPairs": [(A, B), ...],
+        "details": [
+            {
+                "pair": (A, B),
+                "topAtoB": [(fa, fb, similarityPct), ...],
+                "topBtoA": [(fb, fa, similarityPct), ...]
+            },
+            ...
+        ]
+      }
     """
-    # Precompute file hash-sets for faster Jaccard
     file_hash_sets: Dict[str, Set[int]] = {
         fid: set_of_hashes(fps) for fid, fps in file_fps.items()
     }
 
-    suspicious_pairs: List[Tuple[str, str]] = []
+    suspicious_pairs = []
+    details = []
     names = sorted(assignments.keys())
+
     for i in range(len(names)):
         for j in range(i + 1, len(names)):
             a, b = names[i], names[j]
-            files_a = [str(p) for p in assignments[a]]
-            files_b = [str(p) for p in assignments[b]]
-
-            # Filter to those actually processed (in case some files are unsupported)
-            files_a = [f for f in files_a if f in file_hash_sets]
-            files_b = [f for f in files_b if f in file_hash_sets]
-
+            files_a = [str(p) for p in assignments[a] if str(p) in file_hash_sets]
+            files_b = [str(p) for p in assignments[b] if str(p) in file_hash_sets]
             if not files_a or not files_b:
                 continue
 
-            # Use compare.is_assignment_pair_suspicious with prepared sets
-            # Wrap file_fps to deliver only hash sets
             hash_only_fps = {fid: file_hash_sets[fid] for fid in (files_a + files_b)}
+
             flag, best_a_to_b, best_b_to_a = is_assignment_pair_suspicious(
                 files_a, files_b, hash_only_fps, file_threshold, assignment_threshold
             )
@@ -158,22 +164,23 @@ def compare_assignments(
             if flag:
                 suspicious_pairs.append((a, b))
 
-            if show_details:
-                print("\n--- Details for pair:", a, "<->", b, "---")
-                top_a = summarize_pair_details(best_a_to_b, top_k=5)
-                top_b = summarize_pair_details(best_b_to_a, top_k=5)
+            top_a = summarize_pair_details(best_a_to_b, top_k=5)
+            top_b = summarize_pair_details(best_b_to_a, top_k=5)
 
-                def short(p: str) -> str:
-                    return "/".join(Path(p).parts[-2:])
+            details.append({
+                "pair": (a, b),
+                "topAtoB": [
+                    {"left": fa, "right": fb, "similarityPct": s * 100}
+                    for fa, fb, s in top_a
+                ],
+                "topBtoA": [
+                    {"left": fb, "right": fa, "similarityPct": s * 100}
+                    for fb, fa, s in top_b
+                ],
+            })
 
-                print("Top matches A→B:")
-                for fa, fb, s in top_a:
-                    print(f"  {short(fa)}  ~~ {s:.2%} ~~  {short(fb)}")
-                print("Top matches B→A:")
-                for fb, fa, s in top_b:
-                    print(f"  {short(fb)}  ~~ {s:.2%} ~~  {short(fa)}")
+    return {"suspiciousPairs": suspicious_pairs, "details": details}
 
-    return suspicious_pairs
 
 
 def main():
@@ -203,20 +210,41 @@ def main():
     _ = build_index(file_fps)
 
     # Compare
-    suspicious = compare_assignments(
+    results = compare_assignments(
         assignments,
         file_fps,
         file_threshold=args.file_threshold,
         assignment_threshold=args.assignment_threshold,
-        show_details=args.show_details
+        show_details=args.show_details 
     )
 
     print("\nSuspicious Assignment Pairs:")
-    if not suspicious:
+    if not results["suspiciousPairs"]:
         print("(none)")
     else:
-        for a, b in suspicious:
+        for a, b in results["suspiciousPairs"]:
             print(f"{a} ↔ {b}")
+
+    if args.show_details:
+        # Emit detailed sections in the exact format expected by the backend parser
+        for d in results.get("details", []):
+            a, b = d.get("pair", ("A", "B"))
+            print("")
+            print(f"--- Details for pair: {a} <-> {b} ---")
+            print("Top matches A → B")
+            for rec in d.get("topAtoB", []):
+                left = rec.get("left", "")
+                right = rec.get("right", "")
+                pct = float(rec.get("similarityPct", 0.0))
+                print(f"{left} ~~ {pct:.2f}% ~~ {right}")
+            print("")
+            print("Top matches B → A")
+            for rec in d.get("topBtoA", []):
+                left = rec.get("left", "")
+                right = rec.get("right", "")
+                pct = float(rec.get("similarityPct", 0.0))
+                print(f"{left} ~~ {pct:.2f}% ~~ {right}")
+
 
 
 if __name__ == "__main__":
