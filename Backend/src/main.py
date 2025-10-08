@@ -223,7 +223,7 @@ def main():
         print("(none)")
     else:
         for a, b in results["suspiciousPairs"]:
-            print(f"{a} ↔ {b}")
+            print(f"{a} <-> {b}")
 
     if args.show_details:
         # Emit detailed sections in the exact format expected by the backend parser
@@ -231,14 +231,14 @@ def main():
             a, b = d.get("pair", ("A", "B"))
             print("")
             print(f"--- Details for pair: {a} <-> {b} ---")
-            print("Top matches A → B")
+            print("Top matches A -> B")
             for rec in d.get("topAtoB", []):
                 left = rec.get("left", "")
                 right = rec.get("right", "")
                 pct = float(rec.get("similarityPct", 0.0))
                 print(f"{left} ~~ {pct:.2f}% ~~ {right}")
             print("")
-            print("Top matches B → A")
+            print("Top matches B -> A")
             for rec in d.get("topBtoA", []):
                 left = rec.get("left", "")
                 right = rec.get("right", "")

@@ -107,19 +107,40 @@ def create_app() -> Flask:
             logger.info("Assignment %s contains %d .cpp files: %s", 
                        d.name, len(files), [f.name for f in files])
 
-        cmd = [sys.executable, "-m", "src.main", "--corpus", str(CORPUS_DIR), "--show-details"]
+        # Add Backend directory to Python path for module imports
+        env = os.environ.copy()
+        src_dir = Path(__file__).parent  # Get the src directory containing main.py
+        env["PYTHONPATH"] = str(BASE_DIR)  # Set to Backend directory
+        
+        cmd = [
+            sys.executable,  # Use the same Python interpreter
+            "-m",
+            "src.main",     # Use the module path relative to Backend directory
+            "--corpus",
+            str(CORPUS_DIR),
+            "--show-details",
+            "--file-threshold",
+            "0.3",          # Lower threshold to make it easier to detect similarities
+        ]
         logger.info("Running check with command: %s", " ".join(cmd))
         logger.info("Working directory: %s", BASE_DIR)
+        logger.info("PYTHONPATH: %s", env["PYTHONPATH"])
 
         try:
             # Set explicit encoding and error handler for subprocess
+            logger.info("About to run plagiarism check:")
+            logger.info("  Command: %s", " ".join(cmd))
+            logger.info("  Working dir: %s", BASE_DIR)
+            logger.info("  PYTHONPATH: %s", env["PYTHONPATH"])
+            
             proc = subprocess.run(
                 cmd,
                 cwd=str(BASE_DIR),
+                env=env,
                 capture_output=True,
                 text=True,
                 encoding='utf-8',
-                errors='replace',  # Replace invalid chars instead of failing
+                errors='replace',
                 check=False,
                 timeout=SUBPROCESS_TIMEOUT,
             )
